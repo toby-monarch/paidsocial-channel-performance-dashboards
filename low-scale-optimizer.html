@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Low Scale Daily Optimizer</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    header {
+      padding: 20px 28px 16px;
+      border-bottom: 1px solid #1e2330;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    header h1 { font-size: 18px; font-weight: 700; color: #f1f5f9; letter-spacing: -0.3px; }
+    header .sub { font-size: 12px; color: #64748b; margin-top: 2px; }
+    #last-updated { font-size: 11px; color: #475569; }
+
+    /* ── Filter bar ── */
+    .filter-bar {
+      padding: 12px 28px;
+      border-bottom: 1px solid #1e2330;
+      background: #13181f;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+
+    .filter-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .filter-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #475569;
+      white-space: nowrap;
+    }
+
+    .filter-bar input[type="date"] {
+      background: #1e2330;
+      border: 1px solid #2a3344;
+      border-radius: 6px;
+      color: #e2e8f0;
+      font-size: 12px;
+      padding: 5px 10px;
+      outline: none;
+      cursor: pointer;
+    }
+    .filter-bar input[type="date"]:focus { border-color: #3b82f6; }
+
+    .filter-sep { color: #475569; font-size: 12px; }
+
+    .toggle-group { display: flex; gap: 4px; }
+
+    .toggle {
+      background: #1e2330;
+      border: 1px solid #2a3344;
+      border-radius: 6px;
+      color: #64748b;
+      font-size: 12px;
+      font-weight: 500;
+      padding: 5px 12px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .toggle:hover { border-color: #3b82f6; color: #93c5fd; }
+    .toggle.active { background: #1d3a6b; border-color: #3b82f6; color: #93c5fd; }
+    .toggle.active-rd { background: #2d1b2e; border-color: #a855f7; color: #d8b4fe; }
+
+    .reset-btn {
+      background: none;
+      border: none;
+      color: #475569;
+      font-size: 12px;
+      cursor: pointer;
+      padding: 5px 8px;
+      border-radius: 6px;
+      margin-left: auto;
+    }
+    .reset-btn:hover { color: #94a3b8; background: #1e2330; }
+
+    /* ── Main ── */
+    .main { padding: 20px 28px; }
+
+    /* ── KPI Cards ── */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .kpi-card {
+      background: #161b27;
+      border: 1px solid #1e2330;
+      border-radius: 10px;
+      padding: 16px 18px;
+    }
+    .kpi-card.blue { border-color: #1d3a6b; }
+
+    .kpi-label {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: #475569;
+      margin-bottom: 7px;
+    }
+
+    .kpi-value {
+      font-size: 24px;
+      font-weight: 700;
+      color: #f1f5f9;
+      letter-spacing: -0.5px;
+    }
+    .kpi-card.blue .kpi-value { color: #60a5fa; }
+
+    .kpi-sub { font-size: 11px; color: #475569; margin-top: 4px; }
+
+    /* ── Charts ── */
+    .row { display: grid; gap: 14px; margin-bottom: 14px; }
+    .row-wide { grid-template-columns: 2fr 1fr; }
+    .row-half { grid-template-columns: 1fr 1fr; }
+
+    @media (max-width: 860px) {
+      .row-wide, .row-half { grid-template-columns: 1fr; }
+    }
+
+    .card {
+      background: #161b27;
+      border: 1px solid #1e2330;
+      border-radius: 10px;
+      padding: 18px 18px 14px;
+    }
+
+    .card-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #475569;
+      margin-bottom: 14px;
+    }
+
+    /* ── Funnel ── */
+    .funnel { display: flex; flex-direction: column; gap: 8px; }
+    .funnel-row { display: flex; align-items: center; gap: 10px; }
+    .funnel-label { font-size: 12px; color: #64748b; width: 100px; flex-shrink: 0; }
+    .funnel-bar-bg { flex: 1; background: #1e2330; border-radius: 4px; height: 26px; overflow: hidden; }
+    .funnel-bar {
+      height: 100%; border-radius: 4px;
+      display: flex; align-items: center; padding-left: 10px;
+      font-size: 12px; font-weight: 600; color: #fff; min-width: 2px;
+      transition: width 0.4s ease;
+    }
+    .funnel-pct { font-size: 11px; color: #475569; width: 44px; text-align: right; flex-shrink: 0; }
+
+    /* ── Table ── */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    thead th {
+      text-align: left; font-size: 10px; font-weight: 600;
+      color: #475569; text-transform: uppercase; letter-spacing: 0.5px;
+      padding: 7px 10px; border-bottom: 1px solid #1e2330;
+      cursor: pointer; user-select: none; white-space: nowrap;
+    }
+    thead th:hover { color: #94a3b8; }
+    thead th.sort-asc::after  { content: ' ↑'; color: #3b82f6; }
+    thead th.sort-desc::after { content: ' ↓'; color: #3b82f6; }
+
+    tbody tr:hover { background: #1a2030; }
+    tbody td { padding: 9px 10px; border-bottom: 1px solid #161b27; color: #94a3b8; }
+    td.name { font-family: monospace; font-size: 11px; color: #cbd5e1; }
+    td.good { color: #34d399; font-weight: 600; }
+    td.dim  { color: #334155; }
+
+    .badge {
+      display: inline-block; padding: 2px 7px;
+      border-radius: 20px; font-size: 10px; font-weight: 600;
+    }
+    .badge-li { background: #1d3a6b; color: #60a5fa; }
+    .badge-rd { background: #2d1b2e; color: #d8b4fe; }
+
+    /* ── Loading / empty ── */
+    #loading {
+      display: flex; align-items: center; justify-content: center;
+      min-height: 300px; color: #475569; gap: 10px; font-size: 13px;
+    }
+    .spinner {
+      width: 18px; height: 18px;
+      border: 2px solid #1e2330; border-top-color: #3b82f6;
+      border-radius: 50%; animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .empty-state {
+      text-align: center; padding: 40px 20px;
+      color: #475569; font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Low Scale Daily Optimizer</h1>
+    <div class="sub">LinkedIn &amp; Reddit · Ad Performance</div>
+  </div>
+  <div id="last-updated">—</div>
+</header>
+
+<!-- Filter bar -->
+<div class="filter-bar">
+  <div class="filter-group">
+    <span class="filter-label">Dates</span>
+    <input type="date" id="f-start" />
+    <span class="filter-sep">to</span>
+    <input type="date" id="f-end" />
+  </div>
+
+  <div class="filter-group">
+    <span class="filter-label">Channel</span>
+    <div class="toggle-group">
+      <button class="toggle active" data-ch="all">All</button>
+      <button class="toggle" data-ch="LinkedIn">LinkedIn</button>
+      <button class="toggle" data-ch="Reddit">Reddit</button>
+    </div>
+  </div>
+
+  <button class="reset-btn" id="reset-btn">↺ Reset filters</button>
+</div>
+
+<div class="main">
+  <div id="loading"><div class="spinner"></div> Loading from Google Sheets…</div>
+
+  <div id="dashboard" style="display:none">
+    <!-- KPIs -->
+    <div class="kpi-grid">
+      <div class="kpi-card blue">
+        <div class="kpi-label">Total Spend</div>
+        <div class="kpi-value" id="k-spend">—</div>
+        <div class="kpi-sub" id="k-range">—</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Free Trials</div>
+        <div class="kpi-value" id="k-trials">—</div>
+        <div class="kpi-sub" id="k-cpt">—</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Subscriptions</div>
+        <div class="kpi-value" id="k-subs">—</div>
+        <div class="kpi-sub" id="k-cps">—</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Registrations</div>
+        <div class="kpi-value" id="k-regs">—</div>
+        <div class="kpi-sub" id="k-cpr">—</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Blended CTR</div>
+        <div class="kpi-value" id="k-ctr">—</div>
+        <div class="kpi-sub" id="k-impr">—</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Proj. 12M ROAS</div>
+        <div class="kpi-value" id="k-roas">—</div>
+        <div class="kpi-sub" id="k-proj">—</div>
+      </div>
+    </div>
+
+    <!-- Row 1 -->
+    <div class="row row-wide">
+      <div class="card">
+        <div class="card-title">Daily Spend</div>
+        <div style="position:relative;height:210px"><canvas id="c-spend"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Channel Mix</div>
+        <div style="position:relative;height:210px"><canvas id="c-mix"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Row 2 -->
+    <div class="row row-half">
+      <div class="card">
+        <div class="card-title">Conversion Funnel</div>
+        <div id="funnel" class="funnel"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Daily Free Trials</div>
+        <div style="position:relative;height:200px"><canvas id="c-trials"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Creative table -->
+    <div class="card">
+      <div class="card-title">Creative Performance <span style="color:#334155;font-weight:400;text-transform:none;letter-spacing:0">(click column headers to sort)</span></div>
+      <div class="table-wrap">
+        <table id="creative-table">
+          <thead>
+            <tr>
+              <th data-col="id">Creative</th>
+              <th data-col="platform">Channel</th>
+              <th data-col="spend">Spend</th>
+              <th data-col="trials">Trials</th>
+              <th data-col="cpt">Cost/Trial</th>
+              <th data-col="subs">Subs</th>
+              <th data-col="cps">Cost/Sub</th>
+              <th data-col="regs">Regs</th>
+              <th data-col="ctr">CTR</th>
+            </tr>
+          </thead>
+          <tbody id="t-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxsU6vjTTFXVDFDoTf_JC0RO1AJgcfSCNqf_XjvxmOf_9Cu6oOG98oRinAZ5eOhUDrE/exec';
+
+// ── colours ──────────────────────────────────────────────────────────────────
+const C = {
+  li: '#3b82f6', liA: 'rgba(59,130,246,0.15)',
+  rd: '#a855f7', rdA: 'rgba(168,85,247,0.15)',
+  grid: '#1e2330',
+};
+
+// ── helpers ──────────────────────────────────────────────────────────────────
+function num(v)    { const n = parseFloat(v); return isNaN(n) ? 0 : n; }
+function fmt$(n)   { return '$' + Math.round(n).toLocaleString(); }
+function fmtN(n)   { return Math.round(n).toLocaleString(); }
+function fmtPct(n) { return n.toFixed(2) + '%'; }
+
+function toDateStr(v) {
+  const s = String(v ?? '');
+  const m = s.match(/(\d{4}-\d{2}-\d{2})/);
+  return m ? m[1] : '';
+}
+
+function getPlatform(campaign) {
+  const c = (campaign || '').toLowerCase();
+  if (c.includes('linkedin')) return 'LinkedIn';
+  if (c.includes('reddit'))   return 'Reddit';
+  return 'Other';
+}
+
+function parseSheetJSON(json) {
+  const [headers, ...rows] = json.values;
+  return rows.map(row => {
+    const obj = {};
+    headers.forEach((h, i) => obj[String(h).trim()] = row[i] ?? '');
+    return obj;
+  });
+}
+
+// ── state ────────────────────────────────────────────────────────────────────
+let allData    = [];
+let charts     = {};
+let sortCol    = 'spend';
+let sortDir    = 'desc';
+let activeChannel = 'all';
+
+// ── chart defaults ───────────────────────────────────────────────────────────
+const baseOpts = {
+  responsive: true, maintainAspectRatio: false,
+  plugins: { legend: { labels: { color: '#64748b', font: { size: 11 } } } },
+  scales: {
+    x: { ticks: { color: '#475569', font: { size: 10 }, maxTicksLimit: 14 }, grid: { color: C.grid } },
+    y: { ticks: { color: '#475569', font: { size: 10 } }, grid: { color: C.grid } },
+  },
+};
+
+// ── fetch ────────────────────────────────────────────────────────────────────
+async function init() {
+  try {
+    const res = await fetch(APPS_SCRIPT_URL);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const json = await res.json();
+    const rows = parseSheetJSON(json);
+
+    allData = rows
+      .map(r => ({ ...r, Date: toDateStr(r['Date']) }))
+      .filter(r => r['Date'] !== '')
+      .map(r => ({
+        ...r,
+        _spend:    num(r['Total Spend']),
+        _impr:     num(r['Total Impressions']),
+        _clicks:   num(r['Total Clicks']),
+        _regs:     num(r['Total Direct Household Registrations']),
+        _trials:   num(r['Total Direct Free Trials']),
+        _subs:     num(r['Total Direct Subscriptions']),
+        _proj12m:  num(r['Total Direct Projected 12M Value']),
+        _platform: getPlatform(r['Campaign']),
+      }));
+
+    // set default date range from data
+    const dates = [...new Set(allData.map(r => r.Date))].sort();
+    if (dates.length) {
+      document.getElementById('f-start').value = dates[0];
+      document.getElementById('f-end').value   = dates[dates.length - 1];
+    }
+
+    document.getElementById('loading').style.display   = 'none';
+    document.getElementById('dashboard').style.display = 'block';
+    document.getElementById('last-updated').textContent =
+      'Updated ' + new Date().toLocaleString();
+
+    buildCharts();
+    applyAndRender();
+
+  } catch (e) {
+    document.getElementById('loading').innerHTML =
+      `<div style="color:#f87171;line-height:1.8;text-align:center">
+        <strong>Could not load sheet data</strong><br>
+        <small style="color:#475569">${e.message}</small>
+      </div>`;
+  }
+}
+
+// ── filter ───────────────────────────────────────────────────────────────────
+function getFiltered() {
+  const start = document.getElementById('f-start').value;
+  const end   = document.getElementById('f-end').value;
+
+  return allData.filter(r => {
+    if (start && r.Date < start) return false;
+    if (end   && r.Date > end)   return false;
+    if (activeChannel !== 'all' && r._platform !== activeChannel) return false;
+    return true;
+  });
+}
+
+function applyAndRender() {
+  const data = getFiltered();
+  updateKPIs(data);
+  updateCharts(data);
+  updateFunnel(data);
+  updateTable(data);
+}
+
+// ── KPIs ─────────────────────────────────────────────────────────────────────
+function updateKPIs(data) {
+  const tot = data.reduce((a, r) => ({
+    spend:  a.spend  + r._spend,
+    impr:   a.impr   + r._impr,
+    clicks: a.clicks + r._clicks,
+    regs:   a.regs   + r._regs,
+    trials: a.trials + r._trials,
+    subs:   a.subs   + r._subs,
+    proj12: a.proj12 + r._proj12m,
+  }), { spend:0, impr:0, clicks:0, regs:0, trials:0, subs:0, proj12:0 });
+
+  const dates = [...new Set(data.map(r => r.Date))].sort();
+  const ctr   = tot.impr   ? tot.clicks / tot.impr * 100 : 0;
+  const roas  = tot.spend  ? tot.proj12  / tot.spend     : 0;
+
+  setText('k-spend',  fmt$(tot.spend));
+  setText('k-range',  dates.length ? dates[0] + ' → ' + dates[dates.length-1] : '—');
+  setText('k-trials', fmtN(tot.trials));
+  setText('k-cpt',    'Cost/trial: ' + (tot.trials ? fmt$(tot.spend / tot.trials) : '—'));
+  setText('k-subs',   fmtN(tot.subs));
+  setText('k-cps',    'Cost/sub: '   + (tot.subs   ? fmt$(tot.spend / tot.subs)   : '—'));
+  setText('k-regs',   fmtN(tot.regs));
+  setText('k-cpr',    'Cost/reg: '   + (tot.regs   ? fmt$(tot.spend / tot.regs)   : '—'));
+  setText('k-ctr',    fmtPct(ctr));
+  setText('k-impr',   fmtN(tot.impr) + ' impressions');
+  setText('k-roas',   roas.toFixed(2) + 'x');
+  setText('k-proj',   'Proj. value: ' + fmt$(tot.proj12));
+}
+
+function setText(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = val;
+}
+
+// ── build charts (once) ───────────────────────────────────────────────────────
+function buildCharts() {
+  charts.spend = new Chart(document.getElementById('c-spend'), {
+    type: 'line',
+    data: { labels: [], datasets: [
+      { label: 'LinkedIn', data: [], borderColor: C.li, backgroundColor: C.liA, fill: true, tension: 0.3, pointRadius: 2 },
+      { label: 'Reddit',   data: [], borderColor: C.rd, backgroundColor: C.rdA, fill: true, tension: 0.3, pointRadius: 2 },
+    ]},
+    options: {
+      ...baseOpts,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        ...baseOpts.plugins,
+        tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${fmt$(ctx.parsed.y)}` } },
+      },
+      scales: {
+        ...baseOpts.scales,
+        y: { ...baseOpts.scales.y, ticks: { ...baseOpts.scales.y.ticks, callback: v => '$' + v.toLocaleString() } },
+      },
+    },
+  });
+
+  charts.mix = new Chart(document.getElementById('c-mix'), {
+    type: 'doughnut',
+    data: { labels: ['LinkedIn', 'Reddit'], datasets: [{ data: [0, 0], backgroundColor: [C.li, C.rd], borderWidth: 0, hoverOffset: 6 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: '65%',
+      plugins: {
+        legend: { position: 'bottom', labels: { color: '#64748b', font: { size: 11 }, padding: 14 } },
+        tooltip: { callbacks: { label: ctx => {
+          const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+          return ` ${ctx.label}: ${fmt$(ctx.parsed)} (${total ? (ctx.parsed / total * 100).toFixed(1) : 0}%)`;
+        }}},
+      },
+    },
+  });
+
+  charts.trials = new Chart(document.getElementById('c-trials'), {
+    type: 'bar',
+    data: { labels: [], datasets: [{ label: 'Free Trials', data: [], backgroundColor: C.liA, borderColor: C.li, borderWidth: 1, borderRadius: 3 }] },
+    options: { ...baseOpts, plugins: { legend: { display: false } } },
+  });
+}
+
+// ── update charts ─────────────────────────────────────────────────────────────
+function updateCharts(data) {
+  // daily by platform
+  const byDate = {};
+  data.forEach(r => {
+    if (!byDate[r.Date]) byDate[r.Date] = { LinkedIn: 0, Reddit: 0, trials: 0 };
+    byDate[r.Date][r._platform] += r._spend;
+    byDate[r.Date].trials       += r._trials;
+  });
+  const dates = Object.keys(byDate).sort();
+
+  charts.spend.data.labels            = dates.map(d => d.slice(5));
+  charts.spend.data.datasets[0].data  = dates.map(d => byDate[d].LinkedIn);
+  charts.spend.data.datasets[1].data  = dates.map(d => byDate[d].Reddit);
+  charts.spend.update();
+
+  // mix donut
+  const li = data.filter(r => r._platform === 'LinkedIn').reduce((a, r) => a + r._spend, 0);
+  const rd = data.filter(r => r._platform === 'Reddit')  .reduce((a, r) => a + r._spend, 0);
+  charts.mix.data.datasets[0].data = [li, rd];
+  charts.mix.update();
+
+  // trials bar
+  charts.trials.data.labels           = dates.map(d => d.slice(5));
+  charts.trials.data.datasets[0].data = dates.map(d => byDate[d].trials);
+  charts.trials.update();
+}
+
+// ── funnel ────────────────────────────────────────────────────────────────────
+function updateFunnel(data) {
+  const tot = {
+    impr:   data.reduce((a, r) => a + r._impr,   0),
+    clicks: data.reduce((a, r) => a + r._clicks, 0),
+    regs:   data.reduce((a, r) => a + r._regs,   0),
+    trials: data.reduce((a, r) => a + r._trials, 0),
+    subs:   data.reduce((a, r) => a + r._subs,   0),
+  };
+
+  const steps = [
+    { label: 'Impressions',    value: tot.impr,   color: '#3b82f6' },
+    { label: 'Clicks',         value: tot.clicks, color: '#8b5cf6' },
+    { label: 'Registrations',  value: tot.regs,   color: '#ec4899' },
+    { label: 'Free Trials',    value: tot.trials, color: '#f59e0b' },
+    { label: 'Subscriptions',  value: tot.subs,   color: '#10b981' },
+  ];
+
+  const maxV = steps[0].value || 1;
+  const el   = document.getElementById('funnel');
+  el.innerHTML = '';
+
+  steps.forEach((s, i) => {
+    const barPct  = s.value / maxV * 100;
+    const convPct = i > 0 && steps[i-1].value > 0
+      ? (s.value / steps[i-1].value * 100).toFixed(1) + '%' : '';
+    const row = document.createElement('div');
+    row.className = 'funnel-row';
+    row.innerHTML = `
+      <div class="funnel-label">${s.label}</div>
+      <div class="funnel-bar-bg">
+        <div class="funnel-bar" style="width:${Math.max(barPct, 0.3)}%;background:${s.color}">
+          ${s.value.toLocaleString()}
+        </div>
+      </div>
+      <div class="funnel-pct">${convPct}</div>
+    `;
+    el.appendChild(row);
+  });
+}
+
+// ── creative table ────────────────────────────────────────────────────────────
+function buildCreativeRows(data) {
+  const map = {};
+  data.forEach(r => {
+    const k = r['Quick ID'] || '(untagged)';
+    if (!map[k]) map[k] = { id: k, spend: 0, trials: 0, subs: 0, regs: 0, clicks: 0, impr: 0, platforms: new Set() };
+    map[k].spend  += r._spend;
+    map[k].trials += r._trials;
+    map[k].subs   += r._subs;
+    map[k].regs   += r._regs;
+    map[k].clicks += r._clicks;
+    map[k].impr   += r._impr;
+    map[k].platforms.add(r._platform);
+  });
+
+  return Object.values(map)
+    .filter(v => v.spend > 0)
+    .map(v => ({
+      ...v,
+      cpt: v.trials ? v.spend / v.trials : Infinity,
+      cps: v.subs   ? v.spend / v.subs   : Infinity,
+      ctr: v.impr   ? v.clicks / v.impr * 100 : 0,
+      platform: [...v.platforms].filter(p => p !== 'Other').join(', '),
+    }));
+}
+
+function updateTable(data) {
+  const rows = buildCreativeRows(data);
+
+  rows.sort((a, b) => {
+    let av = a[sortCol], bv = b[sortCol];
+    if (typeof av === 'string') av = av.toLowerCase();
+    if (typeof bv === 'string') bv = bv.toLowerCase();
+    if (av === Infinity) av = 999999;
+    if (bv === Infinity) bv = 999999;
+    return sortDir === 'asc' ? (av > bv ? 1 : -1) : (av < bv ? 1 : -1);
+  });
+
+  // update sort indicators
+  document.querySelectorAll('#creative-table thead th').forEach(th => {
+    th.classList.remove('sort-asc', 'sort-desc');
+    if (th.dataset.col === sortCol) th.classList.add(sortDir === 'asc' ? 'sort-asc' : 'sort-desc');
+  });
+
+  const tbody = document.getElementById('t-body');
+  if (rows.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="9" class="empty-state">No data for selected filters</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = rows.map(v => {
+    const plats = [...v.platforms].filter(p => p !== 'Other');
+    const badges = plats.map(p =>
+      `<span class="badge ${p === 'LinkedIn' ? 'badge-li' : 'badge-rd'}">${p}</span>`
+    ).join(' ');
+    return `<tr>
+      <td class="name">${v.id}</td>
+      <td>${badges}</td>
+      <td>${fmt$(v.spend)}</td>
+      <td class="${v.trials > 0 ? 'good' : 'dim'}">${v.trials}</td>
+      <td>${v.cpt < Infinity ? fmt$(v.cpt) : '—'}</td>
+      <td class="${v.subs > 0 ? 'good' : 'dim'}">${v.subs}</td>
+      <td>${v.cps < Infinity ? fmt$(v.cps) : '—'}</td>
+      <td>${v.regs}</td>
+      <td>${fmtPct(v.ctr)}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── event listeners ───────────────────────────────────────────────────────────
+document.getElementById('f-start').addEventListener('change', applyAndRender);
+document.getElementById('f-end').addEventListener('change', applyAndRender);
+
+document.querySelectorAll('.toggle').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.toggle').forEach(b => {
+      b.classList.remove('active', 'active-rd');
+    });
+    activeChannel = btn.dataset.ch;
+    btn.classList.add(activeChannel === 'Reddit' ? 'active-rd' : 'active');
+    applyAndRender();
+  });
+});
+
+document.getElementById('reset-btn').addEventListener('click', () => {
+  const dates = [...new Set(allData.map(r => r.Date))].sort();
+  document.getElementById('f-start').value = dates[0]             || '';
+  document.getElementById('f-end').value   = dates[dates.length-1] || '';
+  activeChannel = 'all';
+  document.querySelectorAll('.toggle').forEach(b => b.classList.remove('active', 'active-rd'));
+  document.querySelector('.toggle[data-ch="all"]').classList.add('active');
+  applyAndRender();
+});
+
+document.querySelectorAll('#creative-table thead th').forEach(th => {
+  th.addEventListener('click', () => {
+    const col = th.dataset.col;
+    if (sortCol === col) {
+      sortDir = sortDir === 'desc' ? 'asc' : 'desc';
+    } else {
+      sortCol = col;
+      sortDir = 'desc';
+    }
+    updateTable(getFiltered());
+  });
+});
+
+init();
+</script>
+</body>
+</html>
