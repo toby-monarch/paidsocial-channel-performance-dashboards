@@ -1,0 +1,1293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Facebook Daily Optimizer</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    header {
+      padding: 20px 28px 16px;
+      border-bottom: 1px solid #1e2330;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    header h1 { font-size: 18px; font-weight: 700; color: #f1f5f9; letter-spacing: -0.3px; }
+    header .sub { font-size: 12px; color: #64748b; margin-top: 2px; }
+    #last-updated { font-size: 11px; color: #475569; }
+
+    /* ── Loading / Error ── */
+    #loading-state {
+      padding: 60px 28px;
+      text-align: center;
+      color: #64748b;
+      font-size: 14px;
+    }
+    .spinner {
+      display: inline-block;
+      width: 20px; height: 20px;
+      border: 2px solid #1e2330;
+      border-top-color: #3b82f6;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-bottom: 12px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Filter bar ── */
+    .filter-bar {
+      padding: 12px 28px;
+      border-bottom: 1px solid #1e2330;
+      background: #13181f;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+    .filter-group { display: flex; align-items: center; gap: 8px; }
+    .filter-label {
+      font-size: 11px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.5px;
+      color: #475569; white-space: nowrap;
+    }
+    .filter-bar input[type="date"] {
+      background: #1e2330; border: 1px solid #2a3344;
+      border-radius: 6px; color: #e2e8f0;
+      font-size: 12px; padding: 5px 10px; outline: none; cursor: pointer;
+    }
+    .filter-bar input[type="date"]:focus { border-color: #3b82f6; }
+    .filter-sep { color: #475569; font-size: 12px; }
+    .toggle-group { display: flex; gap: 4px; }
+    .toggle {
+      background: #1e2330; border: 1px solid #2a3344;
+      border-radius: 6px; color: #64748b;
+      font-size: 12px; font-weight: 500; padding: 5px 12px;
+      cursor: pointer; transition: all 0.15s;
+    }
+    .toggle:hover { border-color: #3b82f6; color: #93c5fd; }
+    .toggle.active { background: #1d3a6b; border-color: #3b82f6; color: #93c5fd; }
+    .reset-btn {
+      background: none; border: none; color: #475569;
+      font-size: 12px; cursor: pointer; padding: 5px 8px;
+      border-radius: 6px; margin-left: auto;
+    }
+    .reset-btn:hover { color: #94a3b8; background: #1e2330; }
+    select.filter-select {
+      background: #1e2330; border: 1px solid #2a3344;
+      border-radius: 6px; color: #e2e8f0;
+      font-size: 12px; padding: 5px 10px; outline: none; cursor: pointer;
+      max-width: 260px;
+    }
+    select.filter-select:focus { border-color: #3b82f6; }
+
+    /* ── Layout ── */
+    .main { padding: 24px 28px; max-width: 1280px; }
+
+    /* ── Section headings ── */
+    .section-title {
+      font-size: 13px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.6px;
+      color: #64748b; margin-bottom: 12px; margin-top: 28px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .section-title:first-child { margin-top: 0; }
+    .section-divider {
+      height: 1px; background: #1e2330; margin: 24px 0;
+    }
+
+    /* ── Action Readout Panel ── */
+    .action-panel {
+      background: #0d1520;
+      border: 1px solid #1e3a5f;
+      border-radius: 12px;
+      padding: 18px 20px;
+      margin-bottom: 28px;
+    }
+    .action-panel-title {
+      font-size: 11px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.7px;
+      color: #3b82f6; margin-bottom: 12px;
+    }
+    .action-chips {
+      display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;
+    }
+    .chip {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 4px 12px; border-radius: 20px;
+      font-size: 12px; font-weight: 500; white-space: nowrap;
+    }
+    .chip-pause   { background: #2d1515; border: 1px solid #7f1d1d; color: #fca5a5; }
+    .chip-anomaly { background: #2d1d0d; border: 1px solid #92400e; color: #fbbf24; }
+    .chip-warn    { background: #2a2910; border: 1px solid #78716c; color: #fde68a; }
+    .chip-up      { background: #0f2d1a; border: 1px solid #166534; color: #86efac; }
+    .chip-down    { background: #1a1020; border: 1px solid #6b21a8; color: #c4b5fd; }
+    .chip-flag    { background: #1a1a1a; border: 1px solid #374151; color: #9ca3af; }
+    .chip-ok      { background: #0a2218; border: 1px solid #065f46; color: #6ee7b7; }
+    .top-action {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid #1e2a3a;
+      font-size: 13px; color: #93c5fd;
+    }
+    .top-action strong { color: #f1f5f9; }
+
+    /* ── Cards ── */
+    .card {
+      background: #161b27;
+      border: 1px solid #1e2330;
+      border-radius: 12px;
+      padding: 20px 22px;
+      margin-bottom: 16px;
+    }
+    .card-title {
+      font-size: 13px; font-weight: 700;
+      color: #94a3b8; margin-bottom: 14px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .card-accent { display: inline-block; width: 3px; height: 14px; border-radius: 2px; }
+
+    /* ── Tables ── */
+    .tbl-wrap { overflow-x: auto; }
+    table {
+      width: 100%; border-collapse: collapse;
+      font-size: 12px; min-width: 560px;
+    }
+    thead th {
+      text-align: left; padding: 8px 10px;
+      font-size: 10px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.5px;
+      color: #475569; border-bottom: 1px solid #1e2330;
+      white-space: nowrap;
+    }
+    tbody tr { border-bottom: 1px solid #1a2030; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: #1a2030; }
+    tbody td { padding: 10px 10px; color: #cbd5e1; vertical-align: top; }
+    .td-right { text-align: right; }
+    .td-mono { font-family: 'SF Mono', 'Consolas', monospace; }
+
+    /* ── Metric comparison table ── */
+    .change-pos { color: #4ade80; }
+    .change-neg { color: #f87171; }
+    .change-neutral { color: #94a3b8; }
+
+    /* ── Decision badges ── */
+    .badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 3px 9px; border-radius: 12px;
+      font-size: 11px; font-weight: 600; white-space: nowrap;
+    }
+    .badge-pause  { background: #2d1515; color: #fca5a5; }
+    .badge-keep   { background: #0a2218; color: #6ee7b7; }
+    .badge-monitor{ background: #1a1a2e; color: #93c5fd; }
+    .badge-increase { background: #0f2d1a; color: #86efac; }
+    .badge-decrease { background: #1a1020; color: #c4b5fd; }
+    .badge-flag   { background: #1a1a1a; color: #9ca3af; }
+
+    /* ── Benchmark row ── */
+    .bench-row {
+      display: flex; flex-wrap: wrap; gap: 20px;
+      background: #1a2030; border-radius: 8px;
+      padding: 10px 14px; margin-bottom: 12px;
+      font-size: 12px;
+    }
+    .bench-item { display: flex; flex-direction: column; gap: 2px; }
+    .bench-label { font-size: 10px; color: #475569; text-transform: uppercase; letter-spacing: 0.4px; }
+    .bench-value { color: #f1f5f9; font-weight: 600; font-family: 'SF Mono', monospace; }
+
+    /* ── Format group header ── */
+    .fmt-header {
+      font-size: 11px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.5px;
+      padding: 6px 10px;
+      border-radius: 6px;
+      margin-bottom: 10px; margin-top: 16px;
+      display: inline-block;
+    }
+    .fmt-static { background: #1d3a6b; color: #60a5fa; }
+    .fmt-video  { background: #2d1b2e; color: #e879f9; }
+    .fmt-unknown{ background: #1a1a1a; color: #9ca3af; }
+
+    /* ── Mode 1 funnel box ── */
+    .funnel-box {
+      background: #1a2030; border-radius: 8px;
+      padding: 12px 14px; margin-top: 12px;
+      font-size: 12px; line-height: 1.7; color: #94a3b8;
+    }
+    .funnel-box strong { color: #e2e8f0; }
+
+    /* ── Chart containers ── */
+    .chart-wrap {
+      position: relative;
+      background: #1a2030; border-radius: 10px;
+      padding: 16px; margin-top: 12px;
+      height: 280px;
+    }
+    .chart-wrap-tall { height: 340px; }
+
+    /* ── Ad progression ── */
+    .ad-details-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 10px; margin-top: 14px;
+    }
+    .ad-metric-box {
+      background: #1a2030; border-radius: 8px;
+      padding: 10px 12px;
+    }
+    .ad-metric-label { font-size: 10px; color: #475569; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 4px; }
+    .ad-metric-value { font-size: 16px; font-weight: 700; color: #f1f5f9; font-family: 'SF Mono', monospace; }
+    .ad-metric-sub   { font-size: 11px; color: #64748b; margin-top: 2px; }
+
+    .override-box {
+      background: #1a2030; border-radius: 8px;
+      padding: 14px 16px; margin-top: 14px;
+      font-size: 12px; line-height: 1.7;
+    }
+    .override-box .ov-title {
+      font-size: 11px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.5px;
+      color: #475569; margin-bottom: 8px;
+    }
+    .ov-item { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 6px; }
+    .ov-icon { font-size: 14px; line-height: 1.5; flex-shrink: 0; }
+    .ov-text { color: #94a3b8; }
+    .ov-text strong { color: #e2e8f0; }
+    .ov-fired { color: #f1f5f9; }
+
+    /* ── Warning / empty states ── */
+    .warn-box {
+      background: #2d1d0d; border: 1px solid #92400e;
+      border-radius: 8px; padding: 12px 14px;
+      font-size: 12px; color: #fbbf24; margin: 8px 0;
+    }
+    .empty-state {
+      text-align: center; color: #475569;
+      padding: 30px; font-size: 13px;
+    }
+
+    /* ── ROAS goal line legend ── */
+    .legend-row {
+      display: flex; flex-wrap: wrap; gap: 14px;
+      font-size: 11px; color: #64748b;
+      margin-top: 8px; padding: 0 4px;
+    }
+    .legend-item { display: flex; align-items: center; gap: 5px; }
+    .legend-dot { width: 20px; height: 2px; border-radius: 1px; }
+    .legend-dot-dashed {
+      width: 20px; height: 2px;
+      background: repeating-linear-gradient(90deg, currentColor 0 4px, transparent 4px 7px);
+    }
+
+    @media (max-width: 600px) {
+      header { padding: 16px 16px 12px; }
+      .filter-bar, .main { padding-left: 16px; padding-right: 16px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Facebook Daily Optimizer</h1>
+    <div class="sub">Skill-driven recommendations · Pause, Budget & Anomaly signals</div>
+  </div>
+  <div id="last-updated">Loading…</div>
+</header>
+
+<!-- Filter bar -->
+<div class="filter-bar" id="filter-bar" style="display:none">
+  <div class="filter-group">
+    <span class="filter-label">Date</span>
+    <input type="date" id="f-start" />
+    <span class="filter-sep">–</span>
+    <input type="date" id="f-end" />
+  </div>
+  <div class="filter-group">
+    <span class="filter-label">Format</span>
+    <div class="toggle-group">
+      <button class="toggle active" id="fmt-all"    onclick="setFormat('all')">All</button>
+      <button class="toggle"        id="fmt-static" onclick="setFormat('Static')">Static</button>
+      <button class="toggle"        id="fmt-video"  onclick="setFormat('Video')">Video</button>
+    </div>
+  </div>
+  <div class="filter-group">
+    <span class="filter-label">View Ad</span>
+    <select class="filter-select" id="ad-select" onchange="renderAdProgression()">
+      <option value="">— select an ad —</option>
+    </select>
+  </div>
+  <button class="reset-btn" onclick="resetFilters()">Reset</button>
+</div>
+
+<!-- Loading state -->
+<div id="loading-state">
+  <div class="spinner"></div><br/>Loading sheet data…
+</div>
+
+<!-- Main content (hidden until data loads) -->
+<div class="main" id="main-content" style="display:none">
+
+  <!-- Action Readout -->
+  <div class="action-panel" id="action-panel">
+    <div class="action-panel-title">⚡ Action Readout</div>
+    <div class="action-chips" id="action-chips"></div>
+    <div class="top-action" id="top-action"></div>
+  </div>
+
+  <!-- Mode 1 -->
+  <div class="section-title">
+    <span class="card-accent" style="background:#f59e0b"></span>
+    Mode 1 — Metric Movement &amp; Anomaly Detection
+  </div>
+  <div class="card" id="mode1-card">
+    <div class="empty-state">No data</div>
+  </div>
+
+  <!-- Mode 2 -->
+  <div class="section-title">
+    <span class="card-accent" style="background:#3b82f6"></span>
+    Mode 2 — Budget Recommendations
+  </div>
+  <div class="card" id="mode2-card">
+    <div class="empty-state">No data</div>
+  </div>
+
+  <!-- Mode 3 -->
+  <div class="section-title">
+    <span class="card-accent" style="background:#a855f7"></span>
+    Mode 3 — Creative Fatigue &amp; Pause Decisions
+  </div>
+  <div class="card" id="mode3-card">
+    <div class="empty-state">No data</div>
+  </div>
+
+  <!-- Ad Progression -->
+  <div class="section-title">
+    <span class="card-accent" style="background:#22d3ee"></span>
+    Ad Progression Viewer
+  </div>
+  <div class="card" id="ad-prog-card">
+    <div class="empty-state" id="ad-prog-empty">Select an ad above to view its full progression.</div>
+    <div id="ad-prog-content" style="display:none"></div>
+  </div>
+
+</div><!-- /main -->
+
+
+<script>
+// ─────────────────────────────────────────────────────────────────────────────
+// CONSTANTS
+// ─────────────────────────────────────────────────────────────────────────────
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxsU6vjTTFXVDFDoTf_JC0RO1AJgcfSCNqf_XjvxmOf_9Cu6oOG98oRinAZ5eOhUDrE/exec?sheet=facebookdailyoptimizer';
+const ROAS_GOAL       = 0.18;
+const PAUSE_FLOOR     = ROAS_GOAL * 0.75;   // 0.135
+const ANOM_MAJOR      = 0.20;
+const ANOM_MINOR      = 0.10;
+const BUDGET_THRESH   = 0.15;
+const DECLINE_RATIO   = 1.5;
+const MIN_SPEND_M3    = 3000;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// UTILITY
+// ─────────────────────────────────────────────────────────────────────────────
+function num(v)      { const n = parseFloat(String(v ?? '').replace(/[$,%]/g,'')); return isNaN(n) ? 0 : n; }
+function toDateStr(v){ const m = String(v ?? '').match(/(\d{4}-\d{2}-\d{2})/); return m ? m[1] : ''; }
+function pct(n,d)    { return d ? n/d : 0; }
+function fmtD(n)     { return '$' + Math.round(n).toLocaleString(); }
+function fmtR(n)     { return n.toFixed(3); }
+function fmtPc(n)    { return (n*100).toFixed(1)+'%'; }
+function chgPc(c,p)  { return p ? (c-p)/Math.abs(p) : null; }
+function fmtChg(c)   {
+  if (c === null) return '—';
+  const s = (c >= 0 ? '+' : '') + (c*100).toFixed(1) + '%';
+  return s;
+}
+function chgClass(c, inverted) {
+  if (c === null) return 'change-neutral';
+  const good = inverted ? c < 0 : c > 0;
+  return good ? 'change-pos' : 'change-neg';
+}
+function dateOffset(d, days) {
+  const dt = new Date(d + 'T12:00:00');
+  dt.setDate(dt.getDate() + days);
+  return dt.toISOString().slice(0,10);
+}
+function getFormat(campaign) {
+  const n = (campaign||'').toLowerCase();
+  if (n.includes('-staticonly')) return 'Static';
+  if (n.includes('-videoonly'))  return 'Video';
+  return null;
+}
+function isTestCampaign(campaign) {
+  return /\b(test|creativetesting|creative\s*test|exploratory|experimental)\b/i.test(campaign||'');
+}
+function flagIcon(chg) {
+  if (chg === null) return '';
+  if (Math.abs(chg) > ANOM_MAJOR) return ' 🚨';
+  if (Math.abs(chg) > ANOM_MINOR) return ' ⚠️';
+  return '';
+}
+function decBadge(rec) {
+  const m = { '🛑 Pause':'badge-pause','✅ Keep':'badge-keep','👀 Monitor':'badge-monitor',
+               '⬆️ Increase':'badge-increase','⬇️ Decrease':'badge-decrease','🚩 Flag':'badge-flag','👀 Monitor':'badge-monitor' };
+  return `<span class="badge ${m[rec]||'badge-flag'}">${rec}</span>`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GLOBAL STATE
+// ─────────────────────────────────────────────────────────────────────────────
+let allData    = [];
+let latestDate = '';
+let charts     = {};
+let activeFormat = 'all';
+let m1Result, m2Result, m3Result;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DATA LOADING
+// ─────────────────────────────────────────────────────────────────────────────
+async function loadData() {
+  try {
+    const res = await fetch(APPS_SCRIPT_URL);
+    const json = await res.json();
+    if (json.error) throw new Error(json.error);
+
+    const [headers, ...rows] = json.values;
+    if (!headers || headers.length === 0) throw new Error('Empty sheet.');
+
+    const h = headers.map(s => String(s).trim());
+    allData = rows
+      .map(row => {
+        const r = {};
+        h.forEach((col,i) => r[col] = row[i] ?? '');
+        r.Date = toDateStr(r['Date']);
+        r._spend  = num(r['Total Spend']);
+        r._impr   = num(r['Total Impressions']);
+        r._clicks = num(r['Total Clicks']);
+        r._regs   = num(r['Total Direct Household Registrations']);
+        r._fts    = num(r['Total Direct Free Trials']);
+        r._p12m   = num(r['Total Direct Projected 12M Value']);
+        r._subs   = num(r['Total Direct Subscriptions'] || 0);
+        r._12m    = num(r['Total Direct 12M Value'] || 0);
+        return r;
+      })
+      .filter(r => r.Date !== '');
+
+    if (allData.length === 0) throw new Error('No rows with valid dates found.');
+
+    // Sort by date
+    allData.sort((a,b) => a.Date < b.Date ? -1 : 1);
+    latestDate = allData[allData.length - 1].Date;
+
+    document.getElementById('last-updated').textContent = 'Data through ' + latestDate;
+    initFilters();
+    runAllModes();
+    populateAdSelect();
+    document.getElementById('filter-bar').style.display = 'flex';
+    document.getElementById('main-content').style.display = 'block';
+    document.getElementById('loading-state').style.display = 'none';
+
+  } catch(e) {
+    document.getElementById('loading-state').innerHTML =
+      `<div style="color:#f87171;font-size:13px">⚠️ Could not load sheet data.<br/><small>${e.message}</small><br/><br/>
+      Make sure the Apps Script is deployed with <em>?sheet=facebookdailyoptimizer</em> and "Anyone" access.</div>`;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FILTERS
+// ─────────────────────────────────────────────────────────────────────────────
+function initFilters() {
+  const dates = allData.map(r => r.Date);
+  const minD = dates[0], maxD = dates[dates.length-1];
+  document.getElementById('f-start').value = minD;
+  document.getElementById('f-end').value   = maxD;
+}
+function resetFilters() {
+  initFilters();
+  setFormat('all');
+  document.getElementById('ad-select').value = '';
+  renderAdProgression();
+}
+function setFormat(fmt) {
+  activeFormat = fmt;
+  document.getElementById('fmt-all').classList.toggle('active', fmt === 'all');
+  document.getElementById('fmt-static').classList.toggle('active', fmt === 'Static');
+  document.getElementById('fmt-video').classList.toggle('active', fmt === 'Video');
+  renderMode2Display();
+  renderMode3Display();
+}
+function getFilteredData() {
+  const s = document.getElementById('f-start').value;
+  const e = document.getElementById('f-end').value;
+  return allData.filter(r => {
+    if (s && r.Date < s) return false;
+    if (e && r.Date > e) return false;
+    if (activeFormat !== 'all' && getFormat(r.Campaign) !== activeFormat) return false;
+    return true;
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AGGREGATION
+// ─────────────────────────────────────────────────────────────────────────────
+function agg(rows) {
+  const spend  = rows.reduce((s,r)=>s+r._spend, 0);
+  const impr   = rows.reduce((s,r)=>s+r._impr,  0);
+  const clicks = rows.reduce((s,r)=>s+r._clicks,0);
+  const regs   = rows.reduce((s,r)=>s+r._regs,  0);
+  const fts    = rows.reduce((s,r)=>s+r._fts,   0);
+  const p12m   = rows.reduce((s,r)=>s+r._p12m,  0);
+  const subs   = rows.reduce((s,r)=>s+r._subs,  0);
+  return {
+    spend, impr, clicks, regs, fts, p12m, subs,
+    ctr:      pct(clicks, impr),
+    cpm:      impr ? spend/impr*1000 : 0,
+    cpc:      pct(spend,  clicks),
+    regRate:  pct(regs,   clicks),
+    costReg:  pct(spend,  regs),
+    ftsRate:  pct(fts,    regs),
+    costFTS:  pct(spend,  fts),
+    roas:     pct(p12m,   spend),
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// EXCLUSIONS
+// ─────────────────────────────────────────────────────────────────────────────
+function computeExclusions(rows, latest) {
+  const d1 = latest;
+  const d2 = dateOffset(latest, -1);
+  const excluded = new Set();
+
+  // Build per-campaign daily spend
+  const byCamp = {};
+  for (const r of rows) {
+    if (!byCamp[r.Campaign]) byCamp[r.Campaign] = {};
+    byCamp[r.Campaign][r.Date] = (byCamp[r.Campaign][r.Date]||0) + r._spend;
+  }
+  for (const [c, byDate] of Object.entries(byCamp)) {
+    if ((byDate[d1]||0) === 0 && (byDate[d2]||0) === 0) excluded.add(c);
+  }
+  // Test naming
+  for (const r of rows) {
+    if (isTestCampaign(r.Campaign)) excluded.add(r.Campaign);
+  }
+  return excluded;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MODE 1: METRIC MOVEMENT & ANOMALY DETECTION
+// ─────────────────────────────────────────────────────────────────────────────
+function computeMode1(rows, latest) {
+  const cStart = dateOffset(latest, -6), cEnd = latest;
+  const pStart = dateOffset(latest,-13), pEnd = dateOffset(latest,-7);
+
+  const curr  = agg(rows.filter(r => r.Date >= cStart && r.Date <= cEnd));
+  const prior = agg(rows.filter(r => r.Date >= pStart && r.Date <= pEnd));
+
+  const spendChg = chgPc(curr.spend,    prior.spend);
+  const ftsChg   = chgPc(curr.costFTS,  prior.costFTS);
+  const roasChg  = chgPc(curr.roas,     prior.roas);
+
+  // Funnel metrics for diagnosis
+  const funnel = [
+    { name:'CTR',       c:curr.ctr,      p:prior.ctr,      stage:'pre-click',   fmt:fmtPc,   inverted:false },
+    { name:'CPM',       c:curr.cpm,      p:prior.cpm,      stage:'pre-click',   fmt:fmtD,    inverted:true  },
+    { name:'CPC',       c:curr.cpc,      p:prior.cpc,      stage:'pre-click',   fmt:fmtD,    inverted:true  },
+    { name:'Reg Rate',  c:curr.regRate,  p:prior.regRate,  stage:'downstream',  fmt:fmtPc,   inverted:false },
+    { name:'FTS Rate',  c:curr.ftsRate,  p:prior.ftsRate,  stage:'downstream',  fmt:fmtPc,   inverted:false },
+  ].map(m => ({ ...m, chg: chgPc(m.c, m.p) }))
+   .filter(m => m.chg !== null)
+   .sort((a,b) => Math.abs(b.chg) - Math.abs(a.chg));
+
+  return {
+    cStart, cEnd, pStart, pEnd,
+    curr, prior,
+    spendChg, ftsChg, roasChg,
+    funnel,
+    ftsFlag:  Math.abs(ftsChg||0)  > ANOM_MAJOR ? 'major' : Math.abs(ftsChg||0)  > ANOM_MINOR ? 'minor' : 'ok',
+    roasFlag: Math.abs(roasChg||0) > ANOM_MAJOR ? 'major' : Math.abs(roasChg||0) > ANOM_MINOR ? 'minor' : 'ok',
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MODE 2: BUDGET RECOMMENDATIONS
+// ─────────────────────────────────────────────────────────────────────────────
+function computeMode2(rows, latest, excluded) {
+  const w7s = dateOffset(latest,-6), w7e = latest;
+  const eligible = rows.filter(r => r.Date >= w7s && r.Date <= w7e && !excluded.has(r.Campaign));
+
+  // Group by campaign
+  const byCamp = {};
+  for (const r of eligible) {
+    if (!byCamp[r.Campaign]) byCamp[r.Campaign] = [];
+    byCamp[r.Campaign].push(r);
+  }
+
+  // Format group benchmarks (sum/sum)
+  const fmtRows = { Static:[], Video:[] };
+  for (const [c, rows2] of Object.entries(byCamp)) {
+    const fmt = getFormat(c);
+    if (fmt) fmtRows[fmt].push(...rows2);
+  }
+  const benchmarks = {};
+  for (const [fmt, fr] of Object.entries(fmtRows)) {
+    benchmarks[fmt] = agg(fr);
+  }
+
+  const totalSpend = eligible.reduce((s,r)=>s+r._spend,0);
+
+  // First pass: compute signals
+  const campaigns = [];
+  for (const [camp, campRows] of Object.entries(byCamp)) {
+    const fmt  = getFormat(camp);
+    const a    = agg(campRows);
+    const bench = fmt ? benchmarks[fmt] : null;
+
+    let rec = '🚩 Flag';
+    let ftsDiff = null, roDiff = null;
+
+    if (bench && bench.costFTS > 0 && bench.roas > 0) {
+      ftsDiff = chgPc(a.costFTS, bench.costFTS); // positive = worse (higher cost)
+      roDiff  = chgPc(a.roas,    bench.roas);    // positive = better (higher roas)
+
+      const ftsGood  = ftsDiff !== null && ftsDiff < -BUDGET_THRESH;
+      const roasGood = roDiff  !== null && roDiff  > BUDGET_THRESH;
+      const ftsBad   = ftsDiff !== null && ftsDiff > BUDGET_THRESH;
+      const roasBad  = roDiff  !== null && roDiff  < -BUDGET_THRESH;
+
+      if (ftsGood && roasGood)         rec = '⬆️ Increase';
+      else if (ftsBad || roasBad)      rec = '⬇️ Decrease'; // may be overridden
+      else                             rec = '🚩 Flag';
+    } else if (!fmt) {
+      rec = '🚩 Flag';
+    }
+
+    campaigns.push({ name:camp, format:fmt||'Unknown', a, bench, spendPct:totalSpend?a.spend/totalSpend:0, rec, ftsDiff, roDiff });
+  }
+
+  // Second pass: override Decrease → Monitor if no better performer in group
+  for (const c of campaigns) {
+    if (c.rec === '⬇️ Decrease') {
+      const hasBetter = campaigns.some(x => x !== c && x.format === c.format && x.rec === '⬆️ Increase');
+      if (!hasBetter) c.rec = '👀 Monitor';
+    }
+  }
+
+  // Sort by spend% desc
+  campaigns.sort((a,b) => b.a.spend - a.a.spend);
+
+  return { campaigns, benchmarks, w7s, w7e, totalSpend };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MODE 3: CREATIVE FATIGUE & PAUSE DECISIONS
+// ─────────────────────────────────────────────────────────────────────────────
+function computeMode3(rows, latest, excluded) {
+  const c7s = dateOffset(latest,-6), c7e = latest;
+  const p7s = dateOffset(latest,-13), p7e = dateOffset(latest,-7);
+
+  const currRows  = rows.filter(r => r.Date >= c7s && r.Date <= c7e && !excluded.has(r.Campaign));
+  const priorRows = rows.filter(r => r.Date >= p7s && r.Date <= p7e && !excluded.has(r.Campaign));
+
+  // Blended benchmarks
+  const blendC  = agg(currRows);
+  const blendP  = agg(priorRows);
+  const blendRC = blendC.roas, blendRP = blendP.roas;
+
+  // Format group ROAS
+  const fgC = { Static: agg(currRows.filter(r=>getFormat(r.Campaign)==='Static')),
+                Video:  agg(currRows.filter(r=>getFormat(r.Campaign)==='Video')) };
+  const fgP = { Static: agg(priorRows.filter(r=>getFormat(r.Campaign)==='Static')),
+                Video:  agg(priorRows.filter(r=>getFormat(r.Campaign)==='Video')) };
+
+  const fgROASC = { Static: fgC.Static.roas, Video: fgC.Video.roas };
+  const fgROASP = { Static: fgP.Static.roas, Video: fgP.Video.roas };
+
+  const fgDelta = {
+    Static: chgPc(fgROASC.Static, fgROASP.Static),
+    Video:  chgPc(fgROASC.Video,  fgROASP.Video)
+  };
+
+  // Group by Quick ID
+  const totalCurrSpend = currRows.reduce((s,r)=>s+r._spend,0);
+
+  const byAd = {};
+  for (const r of [...currRows, ...priorRows]) {
+    const id = String(r['Quick ID']||'').trim() || r.Campaign;
+    if (!byAd[id]) byAd[id] = { curr:[], prior:[], campaign:r.Campaign, id };
+    const inCurr = r.Date >= c7s && r.Date <= c7e;
+    if (inCurr) byAd[id].curr.push(r);
+    else        byAd[id].prior.push(r);
+  }
+
+  const ads = [];
+  for (const [id, ad] of Object.entries(byAd)) {
+    const aC = agg(ad.curr);
+    const aP = agg(ad.prior);
+    if (aC.spend + aP.spend < MIN_SPEND_M3) continue;
+    if (aC.spend === 0) continue; // inactive
+
+    const fmt      = getFormat(ad.campaign);
+    const spendPct = totalCurrSpend ? aC.spend / totalCurrSpend : 0;
+    const roasC    = aC.roas;
+    const roasP    = aP.roas;
+    const roasDelta = chgPc(roasC, roasP);
+    const fgD      = fmt ? fgDelta[fmt] : null;
+
+    let dec = '👀 Monitor', notes = '';
+
+    // Override 1
+    if (roasC > 0 && roasC < PAUSE_FLOOR) {
+      dec   = '🛑 Pause';
+      notes = `ROAS ${fmtR(roasC)} is below pause floor (${fmtR(PAUSE_FLOOR)}) — 25% below quarterly goal.`;
+    }
+    // Override 2
+    else if (blendRC > 0 && roasC > blendRC) {
+      dec   = '✅ Keep';
+      notes = `ROAS ${fmtR(roasC)} exceeds blended account ROAS (${fmtR(blendRC)}) — Override 2.`;
+    }
+    // Override 3
+    else if (roasDelta !== null && fgD !== null) {
+      if (roasDelta < 0 && fgD < 0) {
+        const ratio = fgD !== 0 ? roasDelta / fgD : null;
+        if (ratio !== null && ratio >= DECLINE_RATIO) {
+          const hasBetter = ads.some(x => x.format === fmt && x.dec === '✅ Keep');
+          if (hasBetter) {
+            dec   = '🛑 Pause';
+            notes = `Declining ${ratio.toFixed(1)}× the ${fmt} group rate. Better performers live — replace creative.`;
+          } else {
+            dec   = '👀 Monitor';
+            notes = `Declining ${ratio.toFixed(1)}× the ${fmt} group rate, but no stronger replacement available.`;
+          }
+        } else {
+          dec   = '👀 Monitor';
+          notes = `ROAS declining but within normal range vs. format group.`;
+        }
+      } else if (roasDelta > 0 && (fgD === null || fgD < 0)) {
+        dec   = '✅ Keep';
+        notes = `ROAS improving while format group is declining.`;
+      } else {
+        dec   = '👀 Monitor';
+        notes = `ROAS trend in line with format group.`;
+      }
+    } else {
+      dec   = '👀 Monitor';
+      notes = `Insufficient data for trend comparison.`;
+    }
+
+    const ratio = (roasDelta !== null && fgD && fgD !== 0) ? roasDelta/fgD : null;
+
+    ads.push({ id, campaign:ad.campaign, format:fmt||'Unknown', spendPct, aC, aP,
+               roasC, roasP, roasDelta, fgDelta:fgD, ratio, dec, notes });
+  }
+
+  // Sort by spend%
+  ads.sort((a,b) => b.spendPct - a.spendPct);
+
+  // Top 70%
+  let cumSpend = 0;
+  const topAds = [], bottomAds = [];
+  for (const a of ads) {
+    if (cumSpend <= 0.70) { topAds.push(a); cumSpend += a.spendPct; }
+    else bottomAds.push(a);
+  }
+
+  return { topAds, bottomAds, ads, blendRC, blendRP, fgROASC, fgROASP, fgDelta, c7s, c7e, p7s, p7e };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RUN ALL MODES
+// ─────────────────────────────────────────────────────────────────────────────
+function runAllModes() {
+  const excluded = computeExclusions(allData, latestDate);
+  m1Result = computeMode1(allData, latestDate);
+  m2Result = computeMode2(allData, latestDate, excluded);
+  m3Result = computeMode3(allData, latestDate, excluded);
+
+  renderActionReadout();
+  renderMode1();
+  renderMode2Display();
+  renderMode3Display();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ACTION READOUT
+// ─────────────────────────────────────────────────────────────────────────────
+function renderActionReadout() {
+  const chips = [];
+
+  // Anomalies from Mode 1
+  if (m1Result.ftsFlag  === 'major') chips.push(`<span class="chip chip-anomaly">🚨 Cost/FTS anomaly ${fmtChg(m1Result.ftsChg)}</span>`);
+  if (m1Result.ftsFlag  === 'minor') chips.push(`<span class="chip chip-warn">⚠️ Cost/FTS shift ${fmtChg(m1Result.ftsChg)}</span>`);
+  if (m1Result.roasFlag === 'major') chips.push(`<span class="chip chip-anomaly">🚨 ROAS anomaly ${fmtChg(m1Result.roasChg)}</span>`);
+  if (m1Result.roasFlag === 'minor') chips.push(`<span class="chip chip-warn">⚠️ ROAS shift ${fmtChg(m1Result.roasChg)}</span>`);
+
+  // Mode 3 pauses
+  const pauses = m3Result.topAds.filter(a => a.dec === '🛑 Pause');
+  for (const a of pauses) chips.push(`<span class="chip chip-pause">🛑 Pause: ${a.id}</span>`);
+
+  // Mode 2 budget recs
+  const increases  = m2Result.campaigns.filter(c => c.rec === '⬆️ Increase');
+  const decreases  = m2Result.campaigns.filter(c => c.rec === '⬇️ Decrease' || c.rec === '👀 Monitor');
+  for (const c of increases) chips.push(`<span class="chip chip-up">⬆️ Increase: ${c.name}</span>`);
+  for (const c of decreases.filter(x=>x.rec==='⬇️ Decrease')) chips.push(`<span class="chip chip-down">⬇️ Decrease: ${c.name}</span>`);
+
+  if (chips.length === 0) chips.push(`<span class="chip chip-ok">✅ No immediate actions — monitor normally.</span>`);
+
+  // Top action
+  let topAction = '';
+  if (pauses.length > 0)
+    topAction = `Pause <strong>${pauses[0].id}</strong> — ROAS ${fmtR(pauses[0].roasC)} vs. goal ${fmtR(ROAS_GOAL)}.`;
+  else if (m1Result.roasFlag === 'major')
+    topAction = `Investigate ROAS anomaly (${fmtChg(m1Result.roasChg)} WoW) — review funnel diagnosis below.`;
+  else if (increases.length > 0)
+    topAction = `Shift budget toward <strong>${increases[0].name}</strong> — outperforming ${increases[0].format} benchmark on both north stars.`;
+  else
+    topAction = 'No critical actions today — review Mode 3 trend data before next budget cycle.';
+
+  document.getElementById('action-chips').innerHTML = chips.join('');
+  document.getElementById('top-action').innerHTML  = '🎯 <strong>Top Action:</strong> ' + topAction;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MODE 1 RENDER
+// ─────────────────────────────────────────────────────────────────────────────
+function renderMode1() {
+  const r  = m1Result;
+  const c  = r.curr, p = r.prior;
+
+  const rows_html = [
+    { label:'Spend', curr:fmtD(c.spend), prior:fmtD(p.spend), chg:r.spendChg, inv:false },
+    { label:'Cost/FTS', curr:c.fts?fmtD(c.costFTS):'—', prior:p.fts?fmtD(p.costFTS):'—', chg:r.ftsChg, inv:true, flag:flagIcon(r.ftsChg) },
+    { label:'Proj 12M ROAS', curr:c.spend?fmtR(c.roas):'—', prior:p.spend?fmtR(p.roas):'—', chg:r.roasChg, inv:false, flag:flagIcon(r.roasChg) },
+  ].map(row => `
+    <tr>
+      <td>${row.label}</td>
+      <td class="td-right td-mono">${row.prior}</td>
+      <td class="td-right td-mono">${row.curr}</td>
+      <td class="td-right td-mono ${chgClass(row.chg, row.inv)}">${fmtChg(row.chg)}${row.flag||''}</td>
+    </tr>`).join('');
+
+  // Funnel diagnosis
+  let diag = '';
+  if (r.funnel.length > 0) {
+    const top = r.funnel.slice(0, 2);
+    diag = top.map(m => {
+      const dir = m.chg > 0 ? 'increased' : 'declined';
+      const arrow = m.chg > 0 ? '↑' : '↓';
+      const fmtVal = m.fmt;
+      return `<strong>${m.name}</strong> ${dir} from ${fmtVal(m.p)} to ${fmtVal(m.c)} (${fmtChg(m.chg)}) — <em>${m.stage} signal</em>.`;
+    }).join(' ');
+  }
+
+  document.getElementById('mode1-card').innerHTML = `
+    <div style="font-size:12px;color:#64748b;margin-bottom:12px">
+      Comparison: <strong style="color:#94a3b8">${r.cStart} – ${r.cEnd}</strong>
+      vs. prior <strong style="color:#94a3b8">${r.pStart} – ${r.pEnd}</strong>
+      &nbsp;·&nbsp; Quarterly Goal: Proj 12M ROAS ≥ ${fmtR(ROAS_GOAL)}
+      &nbsp;·&nbsp; Current ROAS: <strong style="color:${c.roas >= ROAS_GOAL?'#4ade80':'#f87171'}">${c.spend?fmtR(c.roas):'—'}</strong>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Metric</th><th class="td-right">Prior Period</th><th class="td-right">Current Period</th><th class="td-right">Change</th></tr></thead>
+        <tbody>${rows_html}</tbody>
+      </table>
+    </div>
+    ${diag ? `<div class="funnel-box"><strong>Why it moved:</strong> ${diag}</div>` : ''}
+  `;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MODE 2 RENDER
+// ─────────────────────────────────────────────────────────────────────────────
+function renderMode2Display() {
+  if (!m2Result) return;
+  const r = m2Result;
+
+  const fmts = activeFormat === 'all' ? ['Static','Video','Unknown'] : [activeFormat];
+
+  let html = `<div style="font-size:12px;color:#64748b;margin-bottom:14px">
+    Rolling 7-day window: <strong style="color:#94a3b8">${r.w7s} – ${r.w7e}</strong>
+    &nbsp;·&nbsp; Quarterly Goal: Proj 12M ROAS ≥ ${fmtR(ROAS_GOAL)}
+  </div>`;
+
+  for (const fmt of fmts) {
+    const fmtCamps = r.campaigns.filter(c => c.format === fmt);
+    if (fmtCamps.length === 0) continue;
+
+    const bench = r.benchmarks[fmt];
+    const fmtClass = fmt === 'Static' ? 'fmt-static' : fmt === 'Video' ? 'fmt-video' : 'fmt-unknown';
+
+    html += `<div class="fmt-header ${fmtClass}">${fmt}</div>`;
+
+    if (bench && bench.spend > 0) {
+      html += `<div class="bench-row">
+        <div class="bench-item"><div class="bench-label">Benchmark Cost/FTS</div><div class="bench-value">${fmtD(bench.costFTS)}</div></div>
+        <div class="bench-item"><div class="bench-label">Benchmark ROAS</div><div class="bench-value">${fmtR(bench.roas)}</div></div>
+        <div class="bench-item"><div class="bench-label">Goal ROAS</div><div class="bench-value">${fmtR(ROAS_GOAL)}</div></div>
+        <div class="bench-item"><div class="bench-label">Period</div><div class="bench-value" style="font-size:11px">${r.w7s} – ${r.w7e}</div></div>
+      </div>`;
+    }
+
+    const tRows = fmtCamps.map(c => {
+      const fts_vs = c.ftsDiff !== null ? fmtChg(c.ftsDiff) : '—';
+      const ro_vs  = c.roDiff  !== null ? fmtChg(c.roDiff)  : '—';
+      const fts_cl = c.ftsDiff !== null ? chgClass(c.ftsDiff, true)  : '';
+      const ro_cl  = c.roDiff  !== null ? chgClass(c.roDiff, false) : '';
+      return `<tr>
+        <td style="max-width:200px;word-break:break-word">${c.name}</td>
+        <td>${decBadge(c.rec)}</td>
+        <td class="td-right td-mono">${fmtPc(c.spendPct)}</td>
+        <td class="td-right td-mono">${c.a.fts?fmtD(c.a.costFTS):'—'}</td>
+        <td class="td-right td-mono ${fts_cl}">${fts_vs}</td>
+        <td class="td-right td-mono">${c.a.spend?fmtR(c.a.roas):'—'}</td>
+        <td class="td-right td-mono ${ro_cl}">${ro_vs}</td>
+      </tr>`;
+    }).join('');
+
+    html += `<div class="tbl-wrap"><table>
+      <thead><tr>
+        <th>Campaign</th><th>Rec</th><th class="td-right">Spend %</th>
+        <th class="td-right">Cost/FTS</th><th class="td-right">vs Bench</th>
+        <th class="td-right">ROAS</th><th class="td-right">vs Bench</th>
+      </tr></thead>
+      <tbody>${tRows}</tbody>
+    </table></div>`;
+  }
+
+  if (!html.includes('<tr>')) html += '<div class="empty-state">No eligible campaigns for this format filter.</div>';
+  document.getElementById('mode2-card').innerHTML = html;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MODE 3 RENDER
+// ─────────────────────────────────────────────────────────────────────────────
+function renderMode3Display() {
+  if (!m3Result) return;
+  const r = m3Result;
+
+  let adsToShow = r.topAds;
+  if (activeFormat !== 'all') adsToShow = adsToShow.filter(a => a.format === activeFormat);
+
+  const benchSection = `
+    <div class="bench-row" style="margin-bottom:16px">
+      <div class="bench-item"><div class="bench-label">Blended ROAS (curr)</div><div class="bench-value">${fmtR(r.blendRC)}</div></div>
+      <div class="bench-item"><div class="bench-label">Blended ROAS (prior)</div><div class="bench-value">${fmtR(r.blendRP)}</div></div>
+      <div class="bench-item"><div class="bench-label">Static ROAS (curr)</div><div class="bench-value">${fmtR(r.fgROASC.Static)}</div></div>
+      <div class="bench-item"><div class="bench-label">Video ROAS (curr)</div><div class="bench-value">${fmtR(r.fgROASC.Video)}</div></div>
+      <div class="bench-item"><div class="bench-label">Quarterly Goal</div><div class="bench-value">${fmtR(ROAS_GOAL)}</div></div>
+      <div class="bench-item"><div class="bench-label">Pause Floor</div><div class="bench-value" style="color:#f87171">${fmtR(PAUSE_FLOOR)}</div></div>
+    </div>`;
+
+  if (adsToShow.length === 0) {
+    document.getElementById('mode3-card').innerHTML = benchSection +
+      '<div class="empty-state">No ads meet the $3k minimum spend threshold for analysis.</div>';
+    return;
+  }
+
+  const tRows = adsToShow.map(a => {
+    const roasDeltaFmt = a.roasDelta !== null ? `<span class="${chgClass(a.roasDelta,false)}">${fmtChg(a.roasDelta)}</span>` : '—';
+    const benchDeltaFmt = a.fgDelta !== null  ? `<span class="${chgClass(a.fgDelta,false)}">${fmtChg(a.fgDelta)}</span>` : '—';
+    const ratioFmt = a.ratio !== null ? a.ratio.toFixed(1)+'×' : '—';
+    return `<tr>
+      <td style="max-width:160px;word-break:break-word;font-size:11px">${a.id}</td>
+      <td><span class="badge ${a.format==='Static'?'badge-increase':a.format==='Video'?'badge-decrease':'badge-flag'}" style="font-size:10px">${a.format}</span></td>
+      <td class="td-right td-mono">${fmtPc(a.spendPct)}</td>
+      <td class="td-right td-mono">${fmtD(a.aC.spend)}</td>
+      <td class="td-right td-mono">${a.roasP?fmtR(a.roasP):'—'}</td>
+      <td class="td-right td-mono">${a.roasC?fmtR(a.roasC):'—'}</td>
+      <td class="td-right td-mono">${roasDeltaFmt}</td>
+      <td class="td-right td-mono">${benchDeltaFmt}</td>
+      <td class="td-right td-mono">${ratioFmt}</td>
+      <td>${decBadge(a.dec)}</td>
+      <td style="font-size:11px;color:#64748b;max-width:200px">${a.notes}</td>
+    </tr>`;
+  }).join('');
+
+  let html = benchSection + `
+    <div class="tbl-wrap"><table>
+      <thead><tr>
+        <th>Ad (Quick ID)</th><th>Format</th>
+        <th class="td-right">Spend %</th><th class="td-right">Total Spend</th>
+        <th class="td-right">ROAS Prior</th><th class="td-right">ROAS Curr</th>
+        <th class="td-right">ROAS Δ</th><th class="td-right">Bench Δ</th>
+        <th class="td-right">Ratio</th><th>Decision</th><th>Notes</th>
+      </tr></thead>
+      <tbody>${tRows}</tbody>
+    </table></div>`;
+
+  if (r.bottomAds.length > 0) {
+    html += `<div style="font-size:11px;color:#475569;margin-top:12px">
+      Below top 70% (not deeply analyzed): ${r.bottomAds.map(a=>a.id).join(', ')}
+    </div>`;
+  }
+
+  document.getElementById('mode3-card').innerHTML = html;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AD PROGRESSION VIEWER
+// ─────────────────────────────────────────────────────────────────────────────
+function populateAdSelect() {
+  // Get unique Quick IDs from allData
+  const ids = [...new Set(allData.map(r => (String(r['Quick ID']||'').trim() || r.Campaign)))]
+    .filter(Boolean).sort();
+  const sel = document.getElementById('ad-select');
+  sel.innerHTML = '<option value="">— select an ad —</option>' +
+    ids.map(id => `<option value="${encodeURIComponent(id)}">${id}</option>`).join('');
+}
+
+function renderAdProgression() {
+  const selVal = document.getElementById('ad-select').value;
+  const adId   = selVal ? decodeURIComponent(selVal) : '';
+  const empty  = document.getElementById('ad-prog-empty');
+  const content = document.getElementById('ad-prog-content');
+
+  if (!adId) {
+    empty.style.display = 'block';
+    content.style.display = 'none';
+    if (charts.adProg) { charts.adProg.destroy(); delete charts.adProg; }
+    return;
+  }
+
+  const adRows = allData.filter(r => {
+    const rid = String(r['Quick ID']||'').trim() || r.Campaign;
+    return rid === adId;
+  });
+
+  if (adRows.length === 0) {
+    empty.textContent = 'No data found for this ad.';
+    empty.style.display = 'block';
+    content.style.display = 'none';
+    return;
+  }
+
+  empty.style.display = 'none';
+  content.style.display = 'block';
+
+  // Group by date
+  const byDate = {};
+  for (const r of adRows) {
+    if (!byDate[r.Date]) byDate[r.Date] = { spend:0, p12m:0, fts:0, clicks:0, impr:0 };
+    byDate[r.Date].spend  += r._spend;
+    byDate[r.Date].p12m   += r._p12m;
+    byDate[r.Date].fts    += r._fts;
+    byDate[r.Date].clicks += r._clicks;
+    byDate[r.Date].impr   += r._impr;
+  }
+
+  const dates = Object.keys(byDate).sort();
+  const roasByDate = dates.map(d => byDate[d].spend > 0 ? byDate[d].p12m / byDate[d].spend : null);
+  const spendByDate = dates.map(d => byDate[d].spend);
+
+  const totalAgg = agg(adRows);
+  const campaign = adRows[0].Campaign;
+  const format   = getFormat(campaign) || 'Unknown';
+
+  // Find this ad in Mode 3 results
+  const adM3 = m3Result ? m3Result.ads.find(a => a.id === adId) : null;
+
+  // Summary KPIs
+  const kpis = `<div class="ad-details-grid">
+    <div class="ad-metric-box">
+      <div class="ad-metric-label">Format</div>
+      <div class="ad-metric-value" style="font-size:14px">${format}</div>
+    </div>
+    <div class="ad-metric-box">
+      <div class="ad-metric-label">Total Spend</div>
+      <div class="ad-metric-value">${fmtD(totalAgg.spend)}</div>
+    </div>
+    <div class="ad-metric-box">
+      <div class="ad-metric-label">7-Day ROAS</div>
+      <div class="ad-metric-value" style="color:${(adM3?.roasC||0)>=ROAS_GOAL?'#4ade80':(adM3?.roasC||0)>=PAUSE_FLOOR?'#fbbf24':'#f87171'}">${adM3?fmtR(adM3.roasC):'—'}</div>
+      <div class="ad-metric-sub">Goal: ${fmtR(ROAS_GOAL)}</div>
+    </div>
+    <div class="ad-metric-box">
+      <div class="ad-metric-label">Total FTS</div>
+      <div class="ad-metric-value">${totalAgg.fts.toLocaleString()}</div>
+    </div>
+    <div class="ad-metric-box">
+      <div class="ad-metric-label">Cost/FTS</div>
+      <div class="ad-metric-value">${totalAgg.fts?fmtD(totalAgg.costFTS):'—'}</div>
+    </div>
+    <div class="ad-metric-box">
+      <div class="ad-metric-label">CTR</div>
+      <div class="ad-metric-value">${fmtPc(totalAgg.ctr)}</div>
+    </div>
+  </div>`;
+
+  // Override results
+  let overrideHtml = '';
+  if (adM3) {
+    const ov1Fired = adM3.roasC > 0 && adM3.roasC < PAUSE_FLOOR;
+    const ov2Fired = !ov1Fired && m3Result.blendRC > 0 && adM3.roasC > m3Result.blendRC;
+    const ov3Fired = !ov1Fired && !ov2Fired;
+    overrideHtml = `<div class="override-box">
+      <div class="ov-title">Decision Override Checks</div>
+      <div class="ov-item">
+        <div class="ov-icon">${ov1Fired?'🛑':'⬜'}</div>
+        <div class="ov-text ${ov1Fired?'ov-fired':''}">
+          <strong>Override 1 — Floor Check:</strong>
+          ROAS ${fmtR(adM3.roasC)} ${ov1Fired ? `< pause floor ${fmtR(PAUSE_FLOOR)} → 🛑 Pause` : `≥ pause floor (${fmtR(PAUSE_FLOOR)}) → pass`}
+        </div>
+      </div>
+      <div class="ov-item">
+        <div class="ov-icon">${ov2Fired?'✅':'⬜'}</div>
+        <div class="ov-text ${ov2Fired?'ov-fired':''}">
+          <strong>Override 2 — Blended Ceiling:</strong>
+          ROAS ${fmtR(adM3.roasC)} ${ov2Fired ? `> blended ${fmtR(m3Result.blendRC)} → ✅ Keep` : `≤ blended ${fmtR(m3Result.blendRC)} → proceed to O3`}
+        </div>
+      </div>
+      <div class="ov-item">
+        <div class="ov-icon">${ov3Fired?'🔍':'⬜'}</div>
+        <div class="ov-text ${ov3Fired?'ov-fired':''}">
+          <strong>Override 3 — Rate of Decline:</strong>
+          ${ov3Fired
+            ? (adM3.roasDelta !== null
+               ? `Ad ROAS ${fmtChg(adM3.roasDelta)} WoW · ${adM3.format} group ${fmtChg(adM3.fgDelta)} WoW · Ratio: ${adM3.ratio!==null?adM3.ratio.toFixed(1)+'×':'—'}`
+               : 'Insufficient prior data.')
+            : '—'}
+        </div>
+      </div>
+      <div style="margin-top:10px;padding-top:10px;border-top:1px solid #2a3344">
+        <strong>Final Decision:</strong> ${decBadge(adM3.dec)} &nbsp; <span style="color:#64748b;font-size:11px">${adM3.notes}</span>
+      </div>
+    </div>`;
+  }
+
+  // Chart
+  const chartHtml = `<div class="chart-wrap chart-wrap-tall"><canvas id="ad-prog-chart"></canvas></div>
+    <div class="legend-row">
+      <div class="legend-item"><div class="legend-dot" style="background:#38bdf8"></div> Proj 12M ROAS (daily)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#4ade80;opacity:0.6;border-top:2px dashed #4ade80;height:0"></div> Goal (${fmtR(ROAS_GOAL)})</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#f87171;opacity:0.6;border-top:2px dashed #f87171;height:0"></div> Pause Floor (${fmtR(PAUSE_FLOOR)})</div>
+    </div>`;
+
+  content.innerHTML = `
+    <div style="font-size:12px;color:#64748b;margin-bottom:4px">
+      <strong style="color:#f1f5f9">${adId}</strong> &nbsp;·&nbsp; ${campaign}
+    </div>
+    ${kpis}
+    ${chartHtml}
+    ${overrideHtml}
+  `;
+
+  // Draw chart
+  if (charts.adProg) { charts.adProg.destroy(); delete charts.adProg; }
+
+  const maxROAS = Math.max(ROAS_GOAL * 1.5, ...roasByDate.filter(Boolean));
+
+  charts.adProg = new Chart(document.getElementById('ad-prog-chart').getContext('2d'), {
+    type: 'line',
+    data: {
+      labels: dates,
+      datasets: [
+        {
+          label: 'Proj 12M ROAS',
+          data: roasByDate,
+          borderColor: '#38bdf8',
+          backgroundColor: 'rgba(56,189,248,0.08)',
+          borderWidth: 2,
+          pointRadius: 3,
+          pointHoverRadius: 5,
+          tension: 0.3,
+          fill: true,
+          spanGaps: true,
+          yAxisID: 'y',
+        },
+        {
+          label: `Goal (${fmtR(ROAS_GOAL)})`,
+          data: dates.map(() => ROAS_GOAL),
+          borderColor: 'rgba(74,222,128,0.7)',
+          borderWidth: 1.5,
+          borderDash: [5,4],
+          pointRadius: 0,
+          fill: false,
+          yAxisID: 'y',
+        },
+        {
+          label: `Pause Floor (${fmtR(PAUSE_FLOOR)})`,
+          data: dates.map(() => PAUSE_FLOOR),
+          borderColor: 'rgba(248,113,113,0.7)',
+          borderWidth: 1.5,
+          borderDash: [5,4],
+          pointRadius: 0,
+          fill: false,
+          yAxisID: 'y',
+        },
+        {
+          label: 'Daily Spend ($)',
+          data: spendByDate,
+          borderColor: 'rgba(251,191,36,0.5)',
+          backgroundColor: 'rgba(251,191,36,0.07)',
+          borderWidth: 1,
+          pointRadius: 0,
+          fill: true,
+          type: 'bar',
+          yAxisID: 'y2',
+        }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode:'index', intersect:false },
+      plugins: {
+        legend: {
+          labels: { color:'#64748b', font:{ size:11 }, boxWidth:20, padding:16 }
+        },
+        tooltip: {
+          backgroundColor: '#1e2330', borderColor: '#2a3344', borderWidth:1,
+          titleColor:'#f1f5f9', bodyColor:'#94a3b8', padding:10,
+          callbacks: {
+            label: (ctx) => {
+              if (ctx.datasetIndex === 3) return ` Spend: ${fmtD(ctx.raw||0)}`;
+              if (ctx.raw === null || ctx.raw === undefined) return ` ${ctx.dataset.label}: —`;
+              return ` ${ctx.dataset.label}: ${ctx.raw.toFixed(3)}`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color:'#475569', font:{size:10}, maxRotation:45 },
+          grid:  { color:'rgba(30,35,48,0.6)' }
+        },
+        y: {
+          position: 'left',
+          ticks: { color:'#475569', font:{size:10}, callback: v => v.toFixed(2) },
+          grid:  { color:'rgba(30,35,48,0.6)' },
+          min: 0,
+        },
+        y2: {
+          position: 'right',
+          ticks: { color:'rgba(251,191,36,0.5)', font:{size:10}, callback: v => fmtD(v) },
+          grid: { drawOnChartArea:false },
+          min: 0,
+        }
+      }
+    }
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────────────────────────────────────
+loadData();
+</script>
+</body>
+</html>
